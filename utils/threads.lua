@@ -7,20 +7,22 @@ _G._dmcThreadSystemData = {
         children = {},
         coroutine = nil,
         filter = nil,
-        alive = true
+        alive = true,
+        overrides = {}
     },
     daemonThread = {
         children = {},
         coroutine = coroutine.create(function()
         end),
         filter = nil,
-        alive = false
+        alive = false,
+        overrides = {}
     }
 }
 
 local tableutil = require("disk/utils/table")
 
-local function createThread(thread_parent, fn, id)
+local function createThread(thread_parent, fn, overrides)
     if type(fn) ~= "function" then
         error("bad argument (expected function, got " .. type(fn) .. ")", 3)
     end
@@ -73,8 +75,16 @@ local function createThread(thread_parent, fn, id)
         })
     end)
 
-    id = id or (#thread_parent.children + 1)
+    local id = #thread_parent.children + 1
+
+    if type(overrides) == "string" then
+        id = overrides
+    elseif overrides and type(overrides.id) == "string" then
+        id = overrides.id
+    end
     -- print("Creating thread with id: " .. id)
+
+    thread.overrides = overrides or {}
 
     thread_parent.children[id] = thread
 
@@ -112,9 +122,31 @@ return function(fn)
 
         if parent_thread.alive then
 
-            if parent_thread.filter == nil or parent_thread.filter == eventData[1] or eventData[1] == "terminate" then
+            if (parent_thread.filter == nil and ((not eventData[1]) or
+                (parent_thread.overrides.eventPrefix == eventData[1]:sub(1, #parent_thread.overrides.eventPrefix)))) or
+                parent_thread.filter == ((parent_thread.overrides.eventPrefix or "") .. eventData[1]) or eventData[1] ==
+                "terminate" then
+
+                local prefixed = eventData[1] and parent_thread.overrides.eventPrefix and eventData[1] ~= "terminate"
+
+                if prefixed then
+                    eventData[1] = eventData[1]:sub(#parent_thread.overrides.eventPrefix + 1)
+                end
+
+                if parent_thread.overrides.preResume then
+                    parent_thread.overrides.preResume(eventData)
+                end
+
                 local ok, event_name =
                     coroutine.resume(parent_thread.coroutine, table.unpack(eventData, 1, eventData.n))
+
+                if parent_thread.overrides.postResume then
+                    parent_thread.overrides.postResume(eventData)
+                end
+
+                if prefixed then
+                    eventData[1] = parent_thread.overrides.eventPrefix .. eventData[1]
+                end
 
                 if not ok then
                     -- error
