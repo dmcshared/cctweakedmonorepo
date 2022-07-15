@@ -20,7 +20,7 @@ _G._dmcThreadSystemData = {
 
 local tableutil = require("disk/utils/table")
 
-local function createThread(thread_parent, fn)
+local function createThread(thread_parent, fn, id)
     if type(fn) ~= "function" then
         error("bad argument (expected function, got " .. type(fn) .. ")", 3)
     end
@@ -33,23 +33,54 @@ local function createThread(thread_parent, fn)
         filter = nil
     }
 
+    local threadMessages = {}
+
     thread.coroutine = coroutine.create(function()
         fn({
-            spawnChild = function(fn)
-                return createThread(thread, fn)
+            spawnChild = function(fn, id)
+                return createThread(thread, fn, id)
             end,
-            spawnSibling = function(fn)
-                return createThread(thread.parent, fn)
+            spawnSibling = function(fn, id)
+                return createThread(thread.parent, fn, id)
             end,
-            spawnDaemon = function(fn)
-                return createThread(_G._dmcThreadSystemData.daemonThread, fn)
+            spawnDaemon = function(fn, id)
+                return createThread(_G._dmcThreadSystemData.daemonThread, fn, id)
+            end,
+            getMessage = function(type)
+                if type then
+
+                    while true do
+                        for i, message in ipairs(threadMessages) do
+                            if message.type == type then
+                                table.remove(threadMessages, i)
+                                return message
+                            end
+                        end
+
+                        os.pullEvent("thread_message")
+                    end
+                else
+                    while true do
+                        if #threadMessages > 0 then
+                            local message = table.remove(threadMessages)
+                            return message
+                        end
+
+                        os.pullEvent("thread_message")
+                    end
+                end
             end
         })
     end)
 
-    table.insert(thread_parent.children, thread)
+    id = id or (#thread_parent.children + 1)
 
-    return #thread_parent.children
+    thread_parent.children[id] = thread
+
+    return function(type, ...)
+        table.insert(threadMessages, {type, ...})
+        os.queueEvent("thread_message")
+    end
 end
 
 return function(fn)
@@ -67,6 +98,8 @@ return function(fn)
             end,
             spawnDaemon = function(fn)
                 return createThread(_G._dmcThreadSystemData.daemonThread, fn)
+            end,
+            getMessage = function()
             end
         })
     end)

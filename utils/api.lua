@@ -19,7 +19,7 @@ end
 function api.host_thread(self, id)
     self.threadStatus[id] = "idle"
 
-    return function()
+    return function(thread)
         print("API Thread " .. id .. " Started")
         while true do
             local event, data = os.pullEvent("api_thread_" .. id)
