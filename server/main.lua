@@ -7,7 +7,7 @@ function indexStorage(index, container)
 
 end
 
-return function()
+function main(threads)
     print("Storage Server Init")
 
     print("Checking for configuration files")
@@ -79,4 +79,9 @@ return function()
     end)
 
     api:host()
+end
+
+return function()
+    local threadSys = require("disk/utils/threads")
+    threadSys(main)
 end
