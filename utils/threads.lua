@@ -33,7 +33,7 @@ local function createThread(thread_parent, fn, id)
         filter = nil
     }
 
-    local threadMessages = {}
+    thread.messages = {}
 
     thread.coroutine = coroutine.create(function()
         fn({
@@ -50,9 +50,9 @@ local function createThread(thread_parent, fn, id)
                 if type then
 
                     while true do
-                        for i, message in ipairs(threadMessages) do
+                        for i, message in ipairs(thread.messages) do
                             if message.type == type then
-                                table.remove(threadMessages, i)
+                                table.remove(thread.messages, i)
                                 return message.type, table.unpack(message)
                             end
                         end
@@ -61,8 +61,8 @@ local function createThread(thread_parent, fn, id)
                     end
                 else
                     while true do
-                        if #threadMessages > 0 then
-                            local message = table.remove(threadMessages)
+                        if #thread.messages > 0 then
+                            local message = table.remove(thread.messages)
                             return message.type, table.unpack(message)
                         end
 
@@ -74,12 +74,15 @@ local function createThread(thread_parent, fn, id)
     end)
 
     id = id or (#thread_parent.children + 1)
+    -- print("Creating thread with id: " .. id)
 
     thread_parent.children[id] = thread
 
     return function(type, ...)
-        table.insert(threadMessages, {type, ...})
-        os.queueEvent("thread_message")
+        table.insert(thread.messages, {
+            type = type,
+            ...
+        })
     end
 end
 
@@ -90,14 +93,14 @@ return function(fn)
     -- createThread(_G._dmcThreadSystemData.rootThread, fn)
     _G._dmcThreadSystemData.rootThread.coroutine = coroutine.create(function()
         fn({
-            spawnChild = function(fn)
-                return createThread(_G._dmcThreadSystemData.rootThread, fn)
+            spawnChild = function(fn, id)
+                return createThread(_G._dmcThreadSystemData.rootThread, fn, id)
             end,
-            spawnSibling = function(fn)
-                return createThread(_G._dmcThreadSystemData.rootThread, fn)
+            spawnSibling = function(fn, id)
+                return createThread(_G._dmcThreadSystemData.rootThread, fn, id)
             end,
-            spawnDaemon = function(fn)
-                return createThread(_G._dmcThreadSystemData.daemonThread, fn)
+            spawnDaemon = function(fn, id)
+                return createThread(_G._dmcThreadSystemData.daemonThread, fn, id)
             end,
             getMessage = function()
             end
@@ -112,6 +115,22 @@ return function(fn)
             if parent_thread.filter == nil or parent_thread.filter == eventData[1] or eventData[1] == "terminate" then
                 local ok, event_name =
                     coroutine.resume(parent_thread.coroutine, table.unpack(eventData, 1, eventData.n))
+
+                if not ok then
+                    -- error
+                    -- parent_thread.alive = false
+                    -- Check for number of childs
+                    error(event_name, 0)
+                else
+                    parent_thread.filter = event_name
+                end
+
+                if coroutine.status(parent_thread.coroutine) == "dead" then
+                    parent_thread.alive = false
+                end
+            end
+            if parent_thread.filter == "thread_message" and #parent_thread.messages > 0 then
+                local ok, event_name = coroutine.resume(parent_thread.coroutine, "thread_message")
 
                 if not ok then
                     parent_thread.alive = false
