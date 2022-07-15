@@ -1,7 +1,7 @@
 local utils = require("disk/utils/utils")
 utils:loadUtil("api")
 
-return function()
+function main(threads)
     print("Hi. I am the player interface")
     local api = utils.api.findService("dmc_storage_system")
     if api.ping() == "pong" then
@@ -18,4 +18,9 @@ return function()
 
     storages = api.getItemStorages()
     print("Found " .. #storages .. " storages")
+end
+
+return function()
+    local threadSys = require("disk/utils/threads")
+    threadSys(main)
 end

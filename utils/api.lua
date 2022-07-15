@@ -17,8 +17,6 @@ function api.registerEndpoint(self, endpoint, handler)
 end
 
 function api.host_thread(self, id)
-    self.threadStatus = self.threadStatus or {}
-
     self.threadStatus[id] = "idle"
 
     return function()
@@ -47,59 +45,58 @@ function api.host_thread(self, id)
     end
 end
 
-function api.host_router(self)
-    return function()
-        self.backlog = {}
+function api.host_router(self, threads)
+    self.backlog = {}
+    self.threadStatus = {}
 
-        while true do
-            print("Waiting on " .. self.servicename)
-            local id, message = rednet.receive(self.servicename)
-            -- Messages in form {funcname, params, replyProtocol, replyID(auto)}
+    print("API Router Started")
 
-            if message[1] == "index" then
-                local response = {}
-                for endpoint, _ in pairs(self.endpoints) do
-                    table.insert(response, endpoint)
-                end
-                rednet.send(id, response, message[3])
-            else
+    for i = 1, self.numThreads do
+        -- table.insert(threads, self:host_thread(i))
+        local thread = self:host_thread(i)
+        threads.spawnChild(thread)
+    end
 
-                message[4] = message[4] or id
+    while true do
+        print("Waiting on " .. self.servicename)
+        local id, message = rednet.receive(self.servicename)
+        -- Messages in form {funcname, params, replyProtocol, replyID(auto)}
 
-                local responseToQueue = true
-
-                -- while responseToQueue do
-                for tid, tstatus in ipairs(self.threadStatus) do
-                    if tstatus == "idle" then
-                        print("Sending task (" .. message[1] .. ") to thread #" .. tid)
-                        os.queueEvent("api_thread_" .. tid, message)
-                        responseToQueue = false
-                        break
-                    end
-                end
-                if responseToQueue then
-                    table.insert(self.backlog, message)
-
-                end
-                -- end
+        if message[1] == "index" then
+            local response = {}
+            for endpoint, _ in pairs(self.endpoints) do
+                table.insert(response, endpoint)
             end
+            rednet.send(id, response, message[3])
+        else
+
+            message[4] = message[4] or id
+
+            local responseToQueue = true
+
+            -- while responseToQueue do
+            for tid, tstatus in ipairs(self.threadStatus) do
+                if tstatus == "idle" then
+                    print("Sending task (" .. message[1] .. ") to thread #" .. tid)
+                    os.queueEvent("api_thread_" .. tid, message)
+                    responseToQueue = false
+                    break
+                end
+            end
+            if responseToQueue then
+                table.insert(self.backlog, message)
+
+            end
+            -- end
         end
     end
 end
 
-function api.host(self)
-    self.threadStatus = self.threadStatus or {}
-
+function api.host(self, threads)
     rednet.open(modem)
     rednet.host(self.servicename, "api_host_" .. os.getComputerID())
 
-    local threads = {}
-    table.insert(threads, self:host_router())
-    for i = 1, self.numThreads do
-        table.insert(threads, self:host_thread(i))
-    end
-
-    parallel.waitForAll(table.unpack(threads))
+    self:host_router(threads)
 
 end
 

@@ -78,7 +78,11 @@ function main(threads)
         return "SUCCESS"
     end)
 
-    api:host()
+    threads.spawnChild(function(thrd)
+        api:host(thrd)
+    end)
+
+    os.sleep(1)
 end
 
 return function()

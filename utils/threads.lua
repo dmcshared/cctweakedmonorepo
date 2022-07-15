@@ -60,10 +60,10 @@ return function(fn)
     _G._dmcThreadSystemData.rootThread.coroutine = coroutine.create(function()
         fn({
             spawnChild = function(fn)
-                return createThread(thread, fn)
+                return createThread(_G._dmcThreadSystemData.rootThread, fn)
             end,
             spawnSibling = function(fn)
-                return createThread(thread.parent, fn)
+                return createThread(_G._dmcThreadSystemData.rootThread, fn)
             end,
             spawnDaemon = function(fn)
                 return createThread(_G._dmcThreadSystemData.daemonThread, fn)
@@ -83,6 +83,8 @@ return function(fn)
                 if not ok then
                     parent_thread.alive = false
                     -- Check for number of childs
+                else
+                    parent_thread.filter = event_name
                 end
             end
         end
