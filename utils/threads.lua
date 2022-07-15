@@ -53,7 +53,7 @@ local function createThread(thread_parent, fn, id)
                         for i, message in ipairs(threadMessages) do
                             if message.type == type then
                                 table.remove(threadMessages, i)
-                                return message
+                                return message.type, table.unpack(message)
                             end
                         end
 
@@ -63,7 +63,7 @@ local function createThread(thread_parent, fn, id)
                     while true do
                         if #threadMessages > 0 then
                             local message = table.remove(threadMessages)
-                            return message
+                            return message.type, table.unpack(message)
                         end
 
                         os.pullEvent("thread_message")
