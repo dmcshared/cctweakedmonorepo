@@ -38,13 +38,19 @@ function api.host_thread(self, id)
                     end
                 end
             end
-            self.threadStatus[id] = "idle"
+            if #self.backlog > 0 then
+                os.queueEvent("api_thread_" .. id, table.remove(self.backlog))
+            else
+                self.threadStatus[id] = "idle"
+            end
         end
     end
 end
 
 function api.host_router(self)
     return function()
+        self.backlog = {}
+
         while true do
             print("Waiting on " .. self.servicename)
             local id, message = rednet.receive(self.servicename)
@@ -62,19 +68,20 @@ function api.host_router(self)
 
                 local responseToQueue = true
 
-                while responseToQueue do
-                    for tid, tstatus in ipairs(self.threadStatus) do
-                        if tstatus == "idle" then
-                            print("Sending task (" .. message[1] .. ") to thread #" .. tid)
-                            os.queueEvent("api_thread_" .. tid, message)
-                            responseToQueue = false
-                            break
-                        end
-                    end
-                    if responseToQueue then
-                        os.sleep(0.05)
+                -- while responseToQueue do
+                for tid, tstatus in ipairs(self.threadStatus) do
+                    if tstatus == "idle" then
+                        print("Sending task (" .. message[1] .. ") to thread #" .. tid)
+                        os.queueEvent("api_thread_" .. tid, message)
+                        responseToQueue = false
+                        break
                     end
                 end
+                if responseToQueue then
+                    table.insert(self.backlog, message)
+
+                end
+                -- end
             end
         end
     end
