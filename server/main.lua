@@ -4,6 +4,11 @@ utils:loadUtil("fsu")
 utils:loadUtil("table")
 utils:loadUtil("gfx.buffer")
 
+--[[
+    Todo:
+    * add requestItems endpoint
+]] --
+
 local buffer = utils.gfx.buffer.createBuffer()
 
 local function indexStorage(index, container, containerName, threads)
@@ -42,7 +47,8 @@ local function indexStorage(index, container, containerName, threads)
                     resCount = 0,
                     slot = i,
                     container = container,
-                    containerID = containerName
+                    containerID = containerName,
+                    locked = false
                 })
             else
                 table.insert(index.freeSlots, {
@@ -77,6 +83,179 @@ local function indexStorage(index, container, containerName, threads)
     --     -- todo add specific support for drawers. (ie, reserved slots, skip slot #1 and max_value is arbitrary)
     -- end
 
+end
+
+local function findItemInIndex(index, item)
+    if not index.byName[item.id] then
+        return nil
+    end
+
+    -- Item is of type {id: string, count: number}
+    local itemName = item.id
+    local itemCount = item.count
+
+    local currentCount = 0
+
+    for i, slot in ipairs(index.byName[itemName].slots) do
+        if not slot.locked then
+            currentCount = currentCount + slot.count
+        end
+    end
+
+    if currentCount < itemCount then
+        return nil
+    end
+
+    local slots = {}
+    for i, slot in ipairs(index.byName[itemName].slots) do
+        if itemCount > 0 and not slot.locked then
+            table.insert(slots, {
+                slot = slot,
+                count = math.min(itemCount, slot.count)
+            })
+            itemCount = itemCount - slot.count
+        end
+    end
+
+    return slots
+end
+
+local function moveItems(index, storages, items, target, threads)
+    -- items is an array of itemids + nbt and count
+
+    local itemsInIndex = {}
+    for i, item in pairs(items) do
+        itemsInIndex[item.id] = findItemInIndex(index, item)
+        if not itemsInIndex[item.id] then
+            return false
+        end
+    end
+
+    for i, item in pairs(itemsInIndex) do
+        for j, slot in ipairs(item) do
+            slot.slot.locked = true
+            slot.slot.count = slot.slot.count - slot.count
+            index.byName[i].totalCount = index.byName[i].totalCount - slot.count
+        end
+    end
+
+    local target_storage = storages[target] or peripheral.wrap(target)
+
+    if not target_storage then
+        for i, item in pairs(itemsInIndex) do
+            for j, slot in ipairs(item) do
+                slot.slot.count = slot.slot.count + slot.count
+                index.byName[i].totalCount = index.byName[i].totalCount + slot.count
+                slot.slot.locked = false
+            end
+        end
+        return false
+    end
+
+    local complete = {}
+
+    for i, item in pairs(itemsInIndex) do
+        for j, slot in ipairs(item) do
+            local threadID = #complete + 1
+            complete[threadID] = false
+            threads.spawnChild(function(thrd)
+                target_storage.pullItems(slot.slot.containerID, slot.slot.slot, slot.count)
+
+                complete[threadID] = true
+            end)
+        end
+    end
+
+    for tid, isComplete in ipairs(complete) do
+        while not complete[tid] do
+            os.pullEventRaw()
+        end
+    end
+
+    for i, item in pairs(itemsInIndex) do
+        for j, slot in ipairs(item) do
+            slot.slot.locked = false
+        end
+    end
+
+    return true
+
+end
+
+local function depositItems(index, target, threads)
+
+    local target_storage = peripheral.wrap(target)
+
+    if not target_storage then
+        return false
+    end
+
+    local itemsToDeposit = target_storage.size()
+
+    -- TODO support for storage drawers
+
+    local complete = {}
+
+    for slotID = 1, itemsToDeposit do
+        local threadID = #complete + 1
+        complete[threadID] = false
+        threads.spawnChild(function(thrd)
+            local item = target_storage.getItemDetail(slotID)
+            if item then
+                local itemName = item.name
+                local itemCount = item.count
+                local itemMeta = item.nbt or "00000000000000000000000000000000"
+
+                local id = itemName .. ":" .. itemMeta
+
+                index.byName[id] = index.byName[id] or {
+                    id = itemName,
+                    displayName = item.displayName,
+                    totalCount = 0,
+                    nbt = itemMeta,
+                    maxCount = item.maxCount,
+                    slots = {}
+                }
+
+                local indexItem = index.byName[id]
+
+                if indexItem then
+                    for i, slot in ipairs(indexItem.slots) do
+                        if slot.count < indexItem.maxCount and not slot.locked and itemCount > 0 then
+                            slot.locked = true
+                            local moved = slot.container.pullItems(target, slotID, itemCount, slot.slot)
+                            itemCount = itemCount - moved
+                            slot.count = slot.count + moved
+                            indexItem.totalCount = indexItem.totalCount + moved
+                        end
+                    end
+                end
+
+                if itemCount > 0 then
+                    local newSlot = table.remove(index.freeSlots)
+                    if newSlot then
+                        local moved = newSlot.container.pullItems(target, slotID, itemCount, newSlot.slot)
+                        indexItem.totalCount = indexItem.totalCount + moved
+                        table.insert(indexItem.slots, {
+                            count = moved,
+                            resCount = 0,
+                            slot = newSlot.slot,
+                            container = newSlot.container,
+                            containerID = peripheral.getName(newSlot.container),
+                            locked = false
+                        })
+                    end
+                end
+            end
+            complete[threadID] = true
+        end)
+    end
+
+    for tid, isComplete in ipairs(complete) do
+        while not complete[tid] do
+            os.pullEventRaw()
+        end
+    end
 end
 
 local function main(threads)
@@ -216,6 +395,14 @@ local function main(threads)
         return utils.table.slice(items, 1, math.min(limit, #items))
     end)
 
+    api:registerEndpoint("moveItems", function(items, target)
+        return moveItems(index, all_storages, items, target, threads)
+    end)
+
+    api:registerEndpoint("depositItems", function(target)
+        return depositItems(index, target, threads)
+    end)
+
     threads.spawnChild(function(thrd)
         api.buffer = buffer
         api:host(thrd)
@@ -232,13 +419,14 @@ local function main(threads)
         -- Following line PRINT LOGS
         while true do
             parallel.waitForAny(do_sleep, get_scroll_evt)
-            buffer:render(1, 1, 51, 19)
+            -- buffer:render(1, 1, 51, 19)
+            buffer:render(25, 1, 51 - 25, 19)
         end
     end, "logs")
 
     threads.spawnChild(function(thrd)
         _G.rt = _G._dmcThreadSystemData.rootThread
-        -- shell.run("lua")
+        shell.run("lua")
     end, "shell")
 
     os.sleep(1)

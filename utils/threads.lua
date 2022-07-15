@@ -121,6 +121,7 @@ return function(fn)
                     -- parent_thread.alive = false
                     -- Check for number of childs
                     error(event_name, 0)
+
                 else
                     parent_thread.filter = event_name
                 end
