@@ -8,6 +8,7 @@ local api = {
     endpoints = {},
     numThreads = 4,
     servicename = "API"
+
 }
 
 api.__index = api
@@ -17,12 +18,13 @@ function api.registerEndpoint(self, endpoint, handler)
 end
 
 function api.host_thread(self, id)
+
     self.threadStatus[id] = "idle"
 
     return function(thread)
-        print("API Thread " .. id .. " Started")
+        self.buffer:addLine("API Thread " .. id .. " Started")
         while true do
-            local event, data = os.pullEvent("api_thread_" .. id)
+            local event, data = thread.getMessage("endpoint")
             self.threadStatus[id] = "working"
             if data then
                 local endpoint = data[1]
@@ -36,11 +38,7 @@ function api.host_thread(self, id)
                     end
                 end
             end
-            if #self.backlog > 0 then
-                os.queueEvent("api_thread_" .. id, table.remove(self.backlog))
-            else
-                self.threadStatus[id] = "idle"
-            end
+            self.threadStatus[id] = "idle"
         end
     end
 end
@@ -49,16 +47,18 @@ function api.host_router(self, threads)
     self.backlog = {}
     self.threadStatus = {}
 
-    print("API Router Started")
+    self.buffer:addLine("API Router Started")
+
+    local workerThreads = {}
 
     for i = 1, self.numThreads do
         -- table.insert(threads, self:host_thread(i))
         local thread = self:host_thread(i)
-        threads.spawnChild(thread)
+        workerThreads[i] = threads.spawnChild(thread)
     end
 
     while true do
-        print("Waiting on " .. self.servicename)
+        self.buffer:addLine("Waiting on " .. self.servicename)
         local id, message = rednet.receive(self.servicename)
         -- Messages in form {funcname, params, replyProtocol, replyID(auto)}
 
@@ -77,8 +77,8 @@ function api.host_router(self, threads)
             -- while responseToQueue do
             for tid, tstatus in ipairs(self.threadStatus) do
                 if tstatus == "idle" then
-                    print("Sending task (" .. message[1] .. ") to thread #" .. tid)
-                    os.queueEvent("api_thread_" .. tid, message)
+                    self.buffer:addLine("Sending task (" .. message[1] .. ") to thread #" .. tid)
+                    workerThreads[tid]("endpoint", message)
                     responseToQueue = false
                     break
                 end
@@ -104,6 +104,12 @@ function API.createServer(servicename)
     local out_api = {}
     setmetatable(out_api, api)
     out_api.servicename = servicename or "API"
+    out_api.endpoints = {}
+    out_api.buffer = {
+        addLine = function(self, st)
+            print(st)
+        end
+    }
     return out_api
 end
 
