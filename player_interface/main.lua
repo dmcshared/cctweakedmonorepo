@@ -14,10 +14,10 @@ function main(threads)
     local storages = api.getItemStorages()
     print("Found " .. #storages .. " storages")
 
-    api.addStorageConf("ironchests:obsidian_chest_0")
-
-    storages = api.getItemStorages()
-    print("Found " .. #storages .. " storages")
+    threads.spawnChild(function(thrd)
+        _G.api = api
+        shell.run("lua")
+    end, "shell")
 end
 
 return function()
