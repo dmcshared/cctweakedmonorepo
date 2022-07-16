@@ -79,7 +79,7 @@ return function(api, interfaceInv)
             while true do
                 local event, button, x, y = os.pullEvent("mouse_click")
                 -- print(event)
-                if y > 1 then
+                if y > 1 and itemInfo[y - 1] then
                     vending = true
 
                     term.clear()

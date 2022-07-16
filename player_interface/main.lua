@@ -1,8 +1,4 @@
 local utils = require("disk/utils/utils")
-utils:loadUtil("api")
-utils:loadUtil("fsu")
-utils:loadUtil("rand")
-utils:loadUtil("tabbed")
 
 function main(threads)
     term.clear()

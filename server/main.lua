@@ -1,8 +1,4 @@
 local utils = require("disk/utils/utils")
-utils:loadUtil("api")
-utils:loadUtil("fsu")
-utils:loadUtil("table")
-utils:loadUtil("gfx.buffer")
 
 --[[
     Todo:
@@ -20,9 +16,9 @@ local function indexStorage(index, container, containerName, threads)
 
     local complete = {}
 
+    buffer:addLine("Spawning Threads for container " .. containerName)
     for i = 1, container.size() do
         complete[i] = false
-        buffer:addLine("Spawning Thread for slot #" .. i .. " of container " .. containerName)
         threads.spawnChild(function(thrd)
             local item = container.getItemDetail(i)
             if item then
@@ -39,7 +35,7 @@ local function indexStorage(index, container, containerName, threads)
                     slots = {}
                 }
 
-                itemObj = index.byName[itemName .. ":" .. itemMeta]
+                local itemObj = index.byName[itemName .. ":" .. itemMeta]
 
                 itemObj.totalCount = itemObj.totalCount + itemCount
 
@@ -51,11 +47,13 @@ local function indexStorage(index, container, containerName, threads)
                     containerID = containerName,
                     locked = false
                 })
+
             else
                 table.insert(index.freeSlots, {
                     container = container,
                     slot = i
                 })
+
             end
             complete[i] = true
         end)
@@ -63,7 +61,7 @@ local function indexStorage(index, container, containerName, threads)
 
     for i = 1, container.size() do
         while not complete[i] do
-            os.sleep()
+            os.pullEventRaw()
         end
     end
 
@@ -282,6 +280,23 @@ local function depositItems(index, target, threads)
 end
 
 local function main(threads)
+
+    threads.spawnChild(function(thrd)
+        local function do_sleep()
+            os.sleep(1)
+        end
+        local function get_scroll_evt()
+            local event, dir, x, y = os.pullEvent("mouse_scroll")
+            buffer.scroll = math.max(0, buffer.scroll - dir)
+        end
+        -- Following line PRINT LOGS
+        while true do
+            parallel.waitForAny(do_sleep, get_scroll_evt)
+            -- buffer:render(1, 1, 51, 19)
+            buffer:render(25, 1, 51 - 25, 19)
+        end
+    end, "logs")
+
     buffer:addLine("Storage Server Init")
 
     buffer:addLine("Checking for configuration files")
@@ -315,18 +330,18 @@ local function main(threads)
 
     for _, storage in ipairs(all_storages) do
         storage.name = peripheral.getName(storage)
-        buffer:addLine("Found Storage: " .. storage.name)
+        -- buffer:addLine("Found Storage: " .. storage.name)
         all_storages_by_name[storage.name] = storage
     end
 
     for storage, enabled in pairs(conf_storages) do
-        buffer:addLine("Found Storage: " .. storage)
+        buffer:addLine("Indexing Storage: " .. storage)
         if enabled then
             if all_storages_by_name[storage] then
                 item_storages[storage] = all_storages_by_name[storage]
-                threads.spawnChild(function(thrd)
-                    indexStorage(index, item_storages[storage], storage, thrd)
-                end)
+                -- threads.spawnChild(function(threads)
+                indexStorage(index, item_storages[storage], storage, threads)
+                -- end)
             else
                 buffer:addLine("Storage " .. storage .. " not found")
             end
@@ -439,22 +454,6 @@ local function main(threads)
         api.buffer = buffer
         api:host(thrd)
     end, "api")
-
-    threads.spawnChild(function(thrd)
-        local function do_sleep()
-            os.sleep(1)
-        end
-        local function get_scroll_evt()
-            local event, dir, x, y = os.pullEvent("mouse_scroll")
-            buffer.scroll = math.max(0, buffer.scroll - dir)
-        end
-        -- Following line PRINT LOGS
-        while true do
-            parallel.waitForAny(do_sleep, get_scroll_evt)
-            -- buffer:render(1, 1, 51, 19)
-            buffer:render(25, 1, 51 - 25, 19)
-        end
-    end, "logs")
 
     threads.spawnChild(function(thrd)
         _G.rt = _G._dmcThreadSystemData.rootThread

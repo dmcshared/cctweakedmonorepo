@@ -1,23 +1,32 @@
 local out = {}
 
-function out.loadUtil(self, name)
-    local util = require("disk/utils/" .. name)
+function out.loadUtil(self, name, path)
+    path = path or "disk/utils/"
+    local util = require(path .. name)
 
-    local result = {};
-    for match in (name .. "."):gmatch("(.-)[./]") do
-        table.insert(result, match);
-    end
-
-    for i = 1, (#result - 1) do
-        local key = result[i]
-        if not self[key] then
-            self[key] = {}
-        end
-        self = self[key]
-    end
-
-    self[result[#result]] = util
+    self[name] = util
 end
+
+-- automatic import
+local function createAutoImport(baseObj, path)
+    baseObj = baseObj or {}
+    setmetatable(baseObj, {
+        __index = function(self, key)
+            if fs.isDir(path .. key) then
+                self[key] = createAutoImport({}, path .. key .. "/")
+            else
+                out.loadUtil(self, key, path)
+            end
+            return self[key]
+            -- out.loadUtil(self, key)
+            -- return self[key]
+        end
+    })
+
+    return baseObj
+end
+
+createAutoImport(out, "/disk/utils/")
 
 return out
 

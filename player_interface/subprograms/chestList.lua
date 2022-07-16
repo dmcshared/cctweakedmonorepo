@@ -1,5 +1,4 @@
 local utils = require("disk/utils/utils")
-utils:loadUtil("table")
 
 return function(api, interfaceInv)
     return function(threads)
