@@ -77,15 +77,17 @@ local function createThread(thread_parent, fn, overrides)
 
     local id = #thread_parent.children + 1
 
+    thread.overrides = {}
+
     if type(overrides) == "string" then
         id = overrides
-    elseif overrides and type(overrides.id) == "string" then
-        id = overrides.id
+        thread.overrides = {
+            id = overrides
+        }
+    elseif overrides then
+        id = overrides.id or id
+        thread.overrides = overrides
     end
-    -- print("Creating thread with id: " .. id)
-
-    thread.overrides = overrides or {}
-
     thread_parent.children[id] = thread
 
     return function(type, ...)
@@ -118,40 +120,37 @@ return function(fn)
     end)
 
     local function tickCoroutines(parent_thread, eventData)
-        -- Tick parent_thread coroutine
+
+        -- term.setTextColor(colors.green)
+
+        if parent_thread.overrides.eventPrefix and eventData[1] then
+            if eventData[1]:sub(1, #parent_thread.overrides.eventPrefix) == parent_thread.overrides.eventPrefix then
+                eventData[1] = eventData[1]:sub(#parent_thread.overrides.eventPrefix + 1)
+            else
+                return
+            end
+        end
+        -- print(eventData[1])
+
+        if parent_thread.overrides.preResume then
+            parent_thread.overrides.preResume(eventData)
+        end
 
         if parent_thread.alive then
 
-            if (parent_thread.filter == nil and ((not eventData[1]) or
-                (parent_thread.overrides.eventPrefix == eventData[1]:sub(1, #parent_thread.overrides.eventPrefix)))) or
-                parent_thread.filter == ((parent_thread.overrides.eventPrefix or "") .. eventData[1]) or eventData[1] ==
-                "terminate" then
-
-                local prefixed = eventData[1] and parent_thread.overrides.eventPrefix and eventData[1] ~= "terminate"
-
-                if prefixed then
-                    eventData[1] = eventData[1]:sub(#parent_thread.overrides.eventPrefix + 1)
-                end
-
-                if parent_thread.overrides.preResume then
-                    parent_thread.overrides.preResume(eventData)
-                end
+            if parent_thread.filter == nil or parent_thread.filter == eventData[1] or eventData[1] == "terminate" then
 
                 local ok, event_name =
                     coroutine.resume(parent_thread.coroutine, table.unpack(eventData, 1, eventData.n))
-
-                if parent_thread.overrides.postResume then
-                    parent_thread.overrides.postResume(eventData)
-                end
-
-                if prefixed then
-                    eventData[1] = parent_thread.overrides.eventPrefix .. eventData[1]
-                end
 
                 if not ok then
                     -- error
                     -- parent_thread.alive = false
                     -- Check for number of childs
+
+                    if parent_thread.overrides.eventPrefix and eventData[1] then
+                        eventData[1] = parent_thread.overrides.eventPrefix .. eventData[1]
+                    end
                     error(event_name, 0)
 
                 else
@@ -184,6 +183,15 @@ return function(fn)
         for _, child_thread in pairs(parent_thread.children) do
             tickCoroutines(child_thread, eventData)
         end
+
+        if parent_thread.overrides.eventPrefix and eventData[1] then
+            eventData[1] = parent_thread.overrides.eventPrefix .. eventData[1]
+        end
+
+        if parent_thread.overrides.postResume then
+            parent_thread.overrides.postResume(eventData)
+        end
+
     end
 
     local eventData = {

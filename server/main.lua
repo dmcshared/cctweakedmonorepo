@@ -6,7 +6,7 @@ utils:loadUtil("gfx.buffer")
 
 --[[
     Todo:
-    * add requestItems endpoint
+    * add autoCrafting
 ]] --
 
 local buffer = utils.gfx.buffer.createBuffer()
@@ -159,7 +159,11 @@ local function moveItems(index, storages, items, target, threads)
             local threadID = #complete + 1
             complete[threadID] = false
             threads.spawnChild(function(thrd)
-                target_storage.pullItems(slot.slot.containerID, slot.slot.slot, slot.count)
+                local remaining = slot.count
+
+                while remaining > 0 do
+                    remaining = remaining - target_storage.pullItems(slot.slot.containerID, slot.slot.slot, remaining)
+                end
 
                 complete[threadID] = true
             end)
@@ -174,7 +178,24 @@ local function moveItems(index, storages, items, target, threads)
 
     for i, item in pairs(itemsInIndex) do
         for j, slot in ipairs(item) do
+
             slot.slot.locked = false
+        end
+    end
+
+    for i, item in pairs(items) do
+        local id = item.id
+
+        local removed = utils.table.filter(index.byName[id].slots, function(slot)
+            return slot.count > 0 or slot.locked
+        end)
+
+        for j, slot in ipairs(removed) do
+            slot.locked = false
+            table.insert(index.freeSlots, {
+                container = slot.container,
+                slot = slot.slot
+            })
         end
     end
 
@@ -227,6 +248,7 @@ local function depositItems(index, target, threads)
                             itemCount = itemCount - moved
                             slot.count = slot.count + moved
                             indexItem.totalCount = indexItem.totalCount + moved
+                            slot.locked = false
                         end
                     end
                 end
@@ -361,7 +383,7 @@ local function main(threads)
             if info.id == itemID and #items < 20 then
                 table.insert(items, {
                     id = info.id,
-                    count = info.totalCount,
+                    totalCount = info.totalCount,
                     displayName = info.displayName,
                     nbt = info.nbt
                 })
@@ -401,6 +423,15 @@ local function main(threads)
 
     api:registerEndpoint("depositItems", function(target)
         return depositItems(index, target, threads)
+    end)
+
+    api:registerEndpoint("reboot", function()
+        buffer:addLine("Rebooting...")
+        os.reboot()
+    end)
+
+    api:registerEndpoint("freeSlotCount", function()
+        return #index.freeSlots
     end)
 
     threads.spawnChild(function(thrd)
