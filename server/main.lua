@@ -7,6 +7,7 @@ utils:loadUtil("gfx.buffer")
 --[[
     Todo:
     * add autoCrafting
+    * separate Tabbing System Out
 ]] --
 
 local buffer = utils.gfx.buffer.createBuffer()
