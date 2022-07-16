@@ -19,10 +19,13 @@ return function(api, interfaceInv)
 
             itemInfo = api.getItemInfoByName(currentQuery, 17)
             for i, item in ipairs(itemInfo) do
+                term.setTextColor(colors.white)
                 term.setCursorPos(1, i + 1)
                 term.write(item.displayName)
                 term.setCursorPos(w - 4 - 2, i + 1)
-                term.write("x " .. item.totalCount)
+                term.write("x ")
+                term.setTextColor(colors.lightBlue)
+                term.write(item.totalCount)
 
             end
         end

@@ -151,6 +151,9 @@ return function(fn)
                     if parent_thread.overrides.eventPrefix and eventData[1] then
                         eventData[1] = parent_thread.overrides.eventPrefix .. eventData[1]
                     end
+
+                    term.redirect(term.native())
+                    term.setCursorPos(1, 1)
                     error(event_name, 0)
 
                 else
