@@ -16,4 +16,15 @@ function strlib.chars(s)
     return chars
 end
 
+function strlib.join(table, delim)
+    local str = ""
+    for i, v in ipairs(table) do
+        str = str .. v
+        if i < #table then
+            str = str .. delim
+        end
+    end
+    return str
+end
+
 return strlib

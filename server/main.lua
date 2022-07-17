@@ -3,7 +3,7 @@ local utils = require("disk/utils/utils")
 --[[
     Todo:
     * add autoCrafting
-    * separate Tabbing System Out
+    * create custom fs with mount support
 ]] --
 
 local buffer = utils.gfx.buffer.createBuffer()
