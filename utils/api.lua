@@ -1,5 +1,3 @@
-local rand = require("disk/utils/rand")
-
 local API = {}
 
 local modem = peripheral.getName(peripheral.find("modem"))
@@ -123,7 +121,7 @@ function API.findService(servicename, serverID)
         serverID = rednet.lookup(servicename)
     end
 
-    local indexRetProto = rand.randString()
+    local indexRetProto = utils.rand.randString()
 
     rednet.send(serverID, {"index", nil, indexRetProto}, servicename)
 
@@ -132,7 +130,7 @@ function API.findService(servicename, serverID)
     for _, endpoint in ipairs(endpoints) do
         out[endpoint] = function(...)
             local args = {...}
-            local retProto = rand.randString()
+            local retProto = utils.rand.randString()
             while true do
                 rednet.send(serverID, {endpoint, args, retProto}, servicename)
                 local id, response = rednet.receive(retProto, 60)

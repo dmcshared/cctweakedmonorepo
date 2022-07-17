@@ -1,5 +1,3 @@
-local utils = require("disk/utils/utils")
-
 local network = {}
 
 function network.create(protocol, serverID)
@@ -32,10 +30,7 @@ function network.host(thrd, protocol, fs)
     local api = utils.api.createServer(protocol)
 
     for name, impl in pairs(fs) do
-        api:registerEndpoint(name, function(...)
-            print(name .. ":", ...)
-            return impl(...)
-        end)
+        api:registerEndpoint(name, impl)
     end
 
     api.endpoints.open = nil

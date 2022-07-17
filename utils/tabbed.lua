@@ -1,6 +1,3 @@
-local rand = require("disk/utils/rand")
-require("disk/utils/gfx/nicer_palette")
-
 function example()
     local tabd = utils.tabbed.createTabbed(threads) -- It creates its own main child thread
 
@@ -33,7 +30,7 @@ end
 function proto.addTab(self, symbol, func)
     local window = window.create(term.native(), 1, 2, 51, 18, false)
     window.clear()
-    local id = rand.randString()
+    local id = utils.rand.randString()
     table.insert(self.windows, {
         symbol = symbol,
         window = window,

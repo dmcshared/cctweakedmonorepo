@@ -1,18 +1,31 @@
+if _G.utils then
+    return _G.utils
+end
+
 local out = {}
+
+_G.utils = out
 
 function out.loadUtil(self, name, path)
     path = path or "disk/utils/"
-    local util = require(path .. name)
+    local utilFile = fs.open(path .. name .. ".lua", "r")
+    local utilSource = utilFile.readAll()
+    utilFile.close()
 
-    self[name] = util
+    local util = load(utilSource)
+    setfenv(util, _G)
+
+    self[name] = util()
 end
+
+local realFS = fs
 
 -- automatic import
 local function createAutoImport(baseObj, path)
     baseObj = baseObj or {}
     setmetatable(baseObj, {
         __index = function(self, key)
-            if fs.isDir(path .. key) then
+            if realFS.isDir(path .. key) then
                 self[key] = createAutoImport({}, path .. key .. "/")
             else
                 out.loadUtil(self, key, path)
@@ -26,7 +39,7 @@ local function createAutoImport(baseObj, path)
     return baseObj
 end
 
-createAutoImport(out, "/disk/utils/")
+createAutoImport(out, _G.utilDrive .. "/utils/")
 
 return out
 

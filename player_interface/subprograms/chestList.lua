@@ -1,5 +1,3 @@
-local utils = require("disk/utils/utils")
-
 return function(api, interfaceInv)
     return function(threads)
         local currentQuery = ""

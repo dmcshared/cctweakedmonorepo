@@ -20,8 +20,6 @@ _G._dmcThreadSystemData = {
     }
 }
 
-local tableutil = require("disk/utils/table")
-
 local function createThread(thread_parent, fn, overrides)
     if type(fn) ~= "function" then
         error("bad argument (expected function, got " .. type(fn) .. ")", 3)
@@ -178,7 +176,7 @@ return function(fn)
         if not parent_thread.alive then
             if #parent_thread.children == 0 and parent_thread.parent then
                 -- No children, kill parent
-                parent_thread.parent.children[tableutil.find(parent_thread.parent.children, parent_thread)] = nil
+                parent_thread.parent.children[utils.table.find(parent_thread.parent.children, parent_thread)] = nil
             end
         end
 

@@ -1,4 +1,4 @@
-local utils = require("disk/utils/utils")
+require("disk.setupUtils")
 
 --[[
     Todo:

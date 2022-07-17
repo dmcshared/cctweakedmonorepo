@@ -1,5 +1,3 @@
-local utils = require("disk/utils/utils")
-
 -- Allows you to combine various FS compatible systems into one mega-system with mount points
 local out = {}
 
