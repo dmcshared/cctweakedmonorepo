@@ -91,7 +91,8 @@ function api.host_router(self, threads)
 end
 
 function api.host(self, threads)
-    rednet.open(modem)
+    peripheral.find("modem", rednet.open)
+    -- rednet.open(modem)
     rednet.host(self.servicename, "api_host_" .. os.getComputerID())
 
     self:host_router(threads)
@@ -112,7 +113,8 @@ function API.createServer(servicename)
 end
 
 function API.findService(servicename, serverID)
-    rednet.open(modem)
+    peripheral.find("modem", rednet.open)
+    -- rednet.open(modem)
     local out = {}
 
     servicename = servicename or "API"
